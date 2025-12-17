@@ -68,6 +68,9 @@ library(ggplot2)
 library(tibble)
 library(pvclust)
 library(purrr)
+library(ggplotify)
+library(gridExtra)
+library(patchwork)
 ```
 
 ------------------------------------------------------------------------
@@ -319,6 +322,91 @@ ggsave("figures/rarefaction_clades_TM266.png")
     theme(plot.title = element_text(hjust = 0.5))
 
 ggsave("figures/rarefaction_clades_TM337.png")
+
+# Building figure S1 with all sites combined
+p_TM90 <- ggiNEXT(results$TM90, type = 1) +
+  ggtitle("TM90") +
+  xlim(0, 100) +
+  xlab("Number of specimens") +
+  ylab("Taxon richness") +
+  scale_colour_manual(values = clade_colors) +
+  scale_fill_manual(values = clade_colors) +
+  theme_minimal() +
+    theme(plot.title = element_text(hjust = 0.5),
+        legend.position = "none")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+p_TM242 <- ggiNEXT(results$TM242, type = 1) +
+  ggtitle("TM242") + 
+  xlim(0, 100) +
+  xlab("Number of specimens") +
+  ylab("Taxon richness") +
+  scale_colour_manual(values = clade_colors) +
+  scale_fill_manual(values = clade_colors) +
+  theme_minimal() +
+    theme(plot.title = element_text(hjust = 0.5),
+        legend.position = "none")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+p_TM252 <- ggiNEXT(results$TM252, type = 1) +
+  ggtitle("TM252") + 
+  xlim(0, 100) +
+  xlab("Number of specimens") +
+  ylab("Taxon richness") +
+  scale_colour_manual(values = clade_colors) +
+  scale_fill_manual(values = clade_colors) +
+  theme_minimal() +
+    theme(plot.title = element_text(hjust = 0.5),
+        legend.position = "none")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+p_TM266 <- ggiNEXT(results$TM266, type = 1) +
+  ggtitle("TM266") + 
+  xlim(0, 100) +
+  xlab("Number of specimens") +
+  ylab("Taxon richness") +
+  scale_colour_manual(values = clade_colors) +
+  scale_fill_manual(values = clade_colors) +
+  theme_minimal() +
+    theme(plot.title = element_text(hjust = 0.5),
+        legend.position = "none")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+p_TM337 <- ggiNEXT(results$TM337, type = 1) +
+  ggtitle("TM337") + 
+  xlim(0, 100) +
+  xlab("Number of specimens") +
+  ylab("Taxon richness") +
+  scale_colour_manual(values = clade_colors) +
+  scale_fill_manual(values = clade_colors) +
+  theme_minimal() +
+    theme(plot.title = element_text(hjust = 0.5),
+        legend.position = "none")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+# Extract the legend
+legend_plot <- ggiNEXT(results$TM90, type = 1) +
+  scale_colour_manual(values = clade_colors) +
+  scale_fill_manual(values = clade_colors) +
+  theme_minimal() +
+  theme(legend.position = "right")
+
+get_legend <- function(p) {
+  g <- ggplotGrob(p)
+  leg <- g$grobs[which(sapply(g$grobs, function(x) x$name) == "guide-box")]
+  return(leg[[1]])
+}
+
+legend_only <- get_legend(legend_plot)
+legend_plot_for_patchwork <- as.ggplot(legend_only)
+ 
+# Combine graphs
+combined <- (p_TM90 | p_TM242) /
+            (p_TM252 | p_TM266) /
+            (p_TM337 | legend_plot_for_patchwork)
+
+ggsave("figures/FigS1_rarefaction_clades.png",
+       plot = combined, width = 8, height = 13)
 
 ```
 
