@@ -25,4 +25,4 @@ This script is provided as supplementary information and will be publicly releas
 
 ***This repository is licensed under the CC BY 4.0 License.*** If you use the data, code, or figures from this repository in your work, please cite it as:
 
-Axelle Gardin, Olga Otero, Géraldine Garcia, Clarisse Nekoulnang, Fabrice Lihoreau, Abderamane Moussa, Mathieu Schuster, Lorenzo Scribano, & Franck Guy (2026). *Toros-Menalla Freshwater Ecosystems*. GitHub repository. <https://doi.org/10.5281/zenodo.17963310>
+Axelle Gardin, Olga Otero, Géraldine Garcia, Clarisse Nekoulnang, Fabrice Lihoreau, Abderamane Moussa, Mathieu Schuster, Lorenzo Scribano, & Franck Guy (2026). *Toros-Menalla Freshwater Ecosystems*. GitHub repository. <https://doi.org/10.5281/zenodo.22746091>
