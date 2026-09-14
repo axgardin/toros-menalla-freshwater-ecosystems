@@ -19,39 +19,39 @@ execute:
 
 This Quarto document provides the R code used for the analyses and figures presented in the manuscript:
 
-**"Reconstructing the freshwater paleoecosystems diversity of Toros-Menalla (Late Miocene, Chad) from an integrated faunal perspective"** by Axelle Gardin, Olga Otero, Géraldine Garcia, Clarisse Nekoulnang, Fabrice Lihoreau, Abderamane Moussa, Mathieu Schuster, Lorenzo Scribano, & Franck Guy.
+**"Reconstructing the freshwater paleoecosystem diversity of Toros-Menalla (Late Miocene, Chad) from an integrated faunal perspective"** by Axelle Gardin, Olga Otero, Géraldine Garcia, Clarisse Nekoulnang, Fabrice Lihoreau, Abderamane Moussa, Mathieu Schuster, Lorenzo Scribano, & Franck Guy.
 
 This work focuses on reconstructing Late Miocene freshwater habitat at Toros-Menalla (northern Chad Basin), where aquatic and terrestrial ecosystems were tightly interconnected. While terrestrial vertebrate assemblages have been extensively studied, aquatic habitats have remained poorly resolved.
 
-By integrating data from five Toros-Menalla sites (including fossil freshwater-dwelling vertebrate assemblages, and discussion with depositional contexts, stable isotopes, and field observations) this study highlights a complex network of freshwater habitats, ranging from floodplains and swamps to open waterbodies with currents. Most assemblages represent spatial habitat diversity rather than temporal succession, with the exception of TM266, which may reflect vertical mixing. The Bol Archipelago (Lake Chad) may be a coherent modern analogue for illustrating Toros-Menalla ecosystem dynamics and site formation. This work emphasizes the importance of systematic, grid-based fossil collection and sieving to capture representative aquatic biodiversity and reconstruct paleoecosystems with ecological precision.
-
-This script is provided as supplementary information and will be publicly released upon publication.
+By integrating data from five Toros-Menalla sites (including fossil freshwater-dwelling vertebrate assemblages, and discussion with depositional contexts, stable isotopes, and field observations) this study highlights a complex network of freshwater habitats, ranging from floodplains and swamps to open waterbodies with currents. Most assemblages represent spatial habitat diversity rather than temporal succession, with the exception of TM266, which may reflect vertical mixing. This work emphasizes the importance of systematic, grid-based fossil collection and sieving to capture representative aquatic biodiversity and reconstruct paleoecosystems with ecological precision.
 
 ## Objectives of this script
 
-The analyses include:
+The code includes:
 
--   Calculation of **standardized taxonomic ranks of abundance;**
--   Generation of **rarefaction curves** based on the number of specimens;
--   Identification of **sampling thresholds** from rarefaction curves;
--   Visualisation of the **sampling effort among clades** with rarefaction curves;
--   **Hierachical clustering** of asemblages;
--   Visualisation of the **assemblage structure** across sites and comparison of **proportions of aquatic vs terrestrial vertebrate taxa** across the five studied sites from Toros-Menalla.
+-   Calculation of standardized taxonomic ranks of abundance;
+-   Generation of rarefaction curves based on the number of specimens;
+-   Identification of sampling thresholds from rarefaction curves;
+-   Visualisation of the sampling effort among clades with rarefaction curves;
+-   MNI sensitivity analysis;
+-   Hierachical clustering of asemblages;
+-   PCA ordination;
+-   Calculation of ecological scores;
+-   Visualisation of the assemblage structure across sites and comparison of proportions of aquatic vs terrestrial vertebrate taxa across the five studied sites from Toros-Menalla.
 
 ## About the data
 
 The datasets are:
 
--   `TM_Aquatic_Abundance.csv` – contains abundance data for freshwater-dwelling taxa in the five studied sites (TM90, TM242, TM252, TM266, TM337), including **Number of Specimens** and **Minimum Number of Individuals** (**MNI)**;
--   `TM_AquaticTerrestrial_Proportions.csv` – contains proportions of aquatic and terrestrial vertebrate groups used to build comparative pie charts.
-
-Taxonomic identifications and abundance estimates are based on the CNRD (Centre National pour la Recherche et le Développement au Tchad, N'Djamena) collections catalogue.
+-   `TM_Aquatic_NISP_MNI.csv` – contains abundance data for freshwater-dwelling taxa in the five studied sites (TM90, TM242, TM252, TM266, TM337), including **Number of Identifierd Specimens (NIPS)** and **Minimum Number of Individuals** (**MNI)**;
+-   `TM_aquatic_terrestrial_proportion.csv` – contains proportions of aquatic and terrestrial vertebrate groups used to build comparative pie charts.
+-   `TM_taxon_ecological_matrix.csv` – contains ecological categories (habitat association and ecological tolerance) associated to each taxon, according to Table 1 of the main text.
 
 ## Citation
 
 ***This repository is licensed under the CC BY 4.0 License.*** If you use the data, code, or figures from this repository in your work, please cite it as:
 
-Axelle Gardin, Olga Otero, Géraldine Garcia, Clarisse Nekoulnang, Fabrice Lihoreau, Abderamane Moussa, Mathieu Schuster, Lorenzo Scribano, & Franck Guy (2025). *Toros-Menalla Freshwater Ecosystems*. GitHub repository. <https://doi.org/10.5281/zenodo.17963310>
+Axelle Gardin, Olga Otero, Géraldine Garcia, Clarisse Nekoulnang, Fabrice Lihoreau, Abderamane Moussa, Mathieu Schuster, Lorenzo Scribano, & Franck Guy (2026). *Toros-Menalla Freshwater Ecosystems*. GitHub repository. <https://doi.org/10.5281/zenodo.17963310>
 
 ------------------------------------------------------------------------
 
@@ -60,17 +60,20 @@ Axelle Gardin, Olga Otero, Géraldine Garcia, Clarisse Nekoulnang, Fabrice Lihor
 ### Load required libraries
 
 ```{r}
-library(iNEXT)
-library(vegan)
 library(dplyr)
-library(tidyr)
 library(ggplot2)
-library(tibble)
-library(pvclust)
-library(purrr)
 library(ggplotify)
+library(ggrepel)
 library(gridExtra)
+library(iNEXT)
 library(patchwork)
+library(pheatmap)
+library(plotly)
+library(purrr)
+library(pvclust)
+library(tibble)
+library(tidyr)
+library(vegan)
 ```
 
 ------------------------------------------------------------------------
@@ -78,27 +81,29 @@ library(patchwork)
 ### Load required datasets
 
 ```{r}
-# Main dataset: abundance data per site
-TM_data <- read.table(file="data/TM_Aquatic_Abundance.csv", head=TRUE, dec=".", sep=";", row.names=1)
+# TM_Aquatic_NISP_MNI
+TM_data <- read.table(file="data/TM_Aquatic_NISP_MNI.csv", head=TRUE, dec=".", sep=";", row.names=1)
 
-# Extract taxon and site names
-taxa <- row.names(TM_data)
+axa <- row.names(TM_data)
 sites <- c("TM90", "TM242", "TM252", "TM266", "TM337")
 
-# Number of specimens per taxon per site
-nb_spec <- TM_data[, 1:5]
-colnames(nb_spec) <- sites
+# NISP
+NISP <- TM_data[, 1:5]
+colnames(NISP) <- sites
 
-# Minimum Number of Individuals per taxon per site
+# MNI
 MNI <- TM_data[, 6:10]
 colnames(MNI) <- sites
 
-# Aquatic vs terrestrial proportion data
-TM_AqTer <- read.table(file="data/TM_AquaticTerrestrial_Proportions.csv", head=TRUE, dec=".", sep=";", row.names=1)
+# Aquatic vs terrestrial proportion 
+TM_AqTer <- read.table(file="data/TM_aquatic_terrestrial_proportion.csv", head=TRUE, dec=".", sep=";", row.names=1)
+
+# Ecological matrix
+eco_matrix <- read.table(file="data/TM_taxon_ecological_matrix.csv", head=TRUE, dec=".", sep=";", row.names=1)
 
 ```
 
-### Standardized Taxonomic Ranks of Abundance
+### Calculation of standardized taxonomic ranks of abundance
 
 The following code calculates a standardized taxonomic rank of abundance for each taxon within each site, following the method described by Le Fur et al. (2014).
 
@@ -130,28 +135,26 @@ compute_standardized_ranks <- function(x) {
 # Apply the function to each site (each column of MNI)
 std_ranks_df <- as.data.frame(apply(MNI, 2, compute_standardized_ranks))
 rownames(std_ranks_df) <- taxa
-colnames(std_ranks_df) <- sites
 
-print(std_ranks_df)
-
+write.csv(std_ranks_df, "results/TM_std_ranks_abundance.csv", row.names = FALSE)
 ```
 
-# Rarefaction analysis and diversity plateau estimation
+# Generation of rarefaction curves based on the number of specimens
 
 ```{r}
 # Rarefaction and extrapolation based on abundance data
-DataInfo(nb_spec, datatype = "abundance")
-cor(DataInfo(nb_spec)$S.obs, DataInfo(nb_spec)$n)
+DataInfo(NISP, datatype = "abundance")
+cor(DataInfo(NISP)$S.obs, DataInfo(NISP)$n)
 
 # Generate rarefaction curves
-D_abund <- iNEXT(nb_spec, datatype = "abundance")
+D_abund <- iNEXT(NISP, datatype = "abundance")
 
-png("figures/rarefaction_curves.png", width = 2000, height = 1500, res = 300)
+png("figures/Fig2_rarefaction_curves.png", width = 2000, height = 1500, res = 300)
 plot(D_abund, xlim = c(0, 2300))
 dev.off()
 ```
 
-## Estimate sampling threshold ("plateau" point)
+## Identification of sampling thresholds from rarefaction curves
 
 To assess sampling sufficiency, we compute rarefaction and extrapolation curves using the iNEXT package. We define a diversity plateau as the point where the marginal gain in taxonomic diversity falls below 0.01 species per additional individual. Beyond this point, diversity increases very slowly: more than 100 additional individuals would be required, on average, to detect one new taxon.
 
@@ -183,12 +186,14 @@ plateau_points
 
 ```
 
-## Sampling effort among clades
+## Visualisation of the sampling effort among clades with rarefaction curves
+
+*This script generates Figure S1 of the Supplementary Information.*
 
 To evaluate sampling effort across the main clades, we used specimen-based rarefaction curves computed separately for each clade and for each site. These curves provide a first-order assessment of whether taxonomic richness approaches an asymptote within clades, and allow comparison of relative sampling completeness among groups and sites. However, this approach has intrinsic limitations. In particular, part of the crocodylian material consists of isolated, morphologically non-diagnostic teeth that likely belong to *Euthecodon* or gavialoid taxa, but cannot be confidently assigned beyond Crocodylia indet. These remains are therefore excluded from the present dataset. As a consequence, rarefaction curves suggest an apparently good sampling of Crocodylia, while masking a higher underlying crocodylian diversity that is known to exist but cannot be resolved taxonomically. Rarefaction curves are thus informative about sampling effort within the identified assemblage, but cannot capture hidden diversity linked to taxonomic uncertainty.
 
 ```{r}
-df <- nb_spec %>%
+df <- NISP %>%
   tibble::rownames_to_column("taxon") %>%
   pivot_longer(
     cols = -taxon,
@@ -269,8 +274,6 @@ for(s in sites) {
       theme_minimal() +
     theme(plot.title = element_text(hjust = 0.5))
 
-ggsave("figures/rarefaction_clades_TM90.png")
-
 ## TM242
     ggiNEXT(results$TM242, type = 1) +
     ggtitle(paste("Rarefaction per clade - TM242")) +
@@ -281,8 +284,6 @@ ggsave("figures/rarefaction_clades_TM90.png")
     scale_fill_manual(values = clade_colors) +
       theme_minimal() +
     theme(plot.title = element_text(hjust = 0.5))
-
-ggsave("figures/rarefaction_clades_TM242.png")
 
 ## TM252
     ggiNEXT(results$TM252, type = 1) +
@@ -295,8 +296,6 @@ ggsave("figures/rarefaction_clades_TM242.png")
       theme_minimal() +
     theme(plot.title = element_text(hjust = 0.5))
 
-ggsave("figures/rarefaction_clades_TM252.png")
-
 ## TM266
     ggiNEXT(results$TM266, type = 1) +
     ggtitle(paste("Rarefaction per clade - TM266")) +
@@ -308,8 +307,6 @@ ggsave("figures/rarefaction_clades_TM252.png")
       theme_minimal() +
     theme(plot.title = element_text(hjust = 0.5))
 
-ggsave("figures/rarefaction_clades_TM266.png")
-
 ## TM337
     ggiNEXT(results$TM337, type = 1) +
     ggtitle(paste("Rarefaction per clade - TM337")) +
@@ -320,9 +317,7 @@ ggsave("figures/rarefaction_clades_TM266.png")
     scale_fill_manual(values = clade_colors) +
       theme_minimal() +
     theme(plot.title = element_text(hjust = 0.5))
-
-ggsave("figures/rarefaction_clades_TM337.png")
-
+    
 # Building figure S1 with all sites combined
 p_TM90 <- ggiNEXT(results$TM90, type = 1) +
   ggtitle("TM90") +
@@ -405,79 +400,373 @@ combined <- (p_TM90 | p_TM242) /
             (p_TM252 | p_TM266) /
             (p_TM337 | legend_plot_for_patchwork)
 
-ggsave("figures/FigS1_rarefaction_clades.png",
+ggsave("figures/FigS1_rarefaction_per_clades.png",
        plot = combined, width = 8, height = 13)
 
 ```
 
+# MNI sensitivity analysis
+
+*This script generates Tables S1 to S4 of the Supplementary Information.*
+
+MNI was estimated based on the most abundant skeletal element, which varies among sites, taxa, and, when observed, sex and size classes. For fish taxa primarily represented by isolated teeth, MNI estimates were derived from tooth counts in modern relative species: 15-25 teeth for Alestidae (Vienne et al. 2026), 15-30 for *Hydrocynus* (Vienne et al. 2026), 22 for Labeo (Pasco-Viel et al. 2014), 34-44 for *Gymnarchus* (Bigorne, 2003), and four beak elements for *Tetraodon* (Lévêque and Paugy, 2003). Where modern data indicate substantial variation in the number of teeth per individual, we used a range rather than a single value. For assemblages in which the plausible range of teeth per individual resulted in different MNI estimates (all except TM242), we conducted a sensitivity analysis of the standardised ranks of abundance.
+
+Overall, it indicates that the relative abundance patterns and associated ecological interpretations are robust to the plausible uncertainty in MNI estimates (see supplementary material). For the remainder of the study, we use the lowest MNI estimate to remain conservative. We did not observe worn or digested teeth, suggesting that the contribution of shed teeth to our estimates is negligible.
+
+**Generate MNI scenarios combining minimum and maximum estimates for selected taxa**
+
+```{r}
+make_scenario <- function(MNI, site, Alestinae = NULL, Hydrocynus = NULL, Gymnarchus = NULL) {
+  MNI_new <- MNI
+    if (!is.null(Alestinae)) {MNI_new["Alestinae", site] <- Alestinae}
+    if (!is.null(Hydrocynus)) {MNI_new["Hydrocynus", site] <- Hydrocynus}
+    if (!is.null(Gymnarchus)) {MNI_new["Gymnarchus", site] <- Gymnarchus}
+    return(MNI_new) }
+
+#TM90: MNI for Alestinae is estimated to vary from 7 to 9
+TM90_scenarios <- list(min = make_scenario(MNI, site = "TM90", Alestinae = 7), max = make_scenario(MNI, site = "TM90", Alestinae = 9))
+
+# TM242: MNI remains unchanged
+
+# TM252: MNI for Alestinae is estimated to vary from 74 to 125, and from 11 and 15 for Hydrocynus.
+TM252_scenarios <- list(min_min = make_scenario(MNI, site = "TM252", Alestinae = 74, Hydrocynus = 11), min_max = make_scenario(MNI, site = "TM252", Alestinae = 74, Hydrocynus = 15),max_min = make_scenario(MNI, site = "TM252", Alestinae = 125, Hydrocynus = 11), max_max = make_scenario(  MNI, site = "TM252", Alestinae = 125, Hydrocynus = 15))
+
+#TM266: MNI for Hydrocynus is estimated to vary from 11 to 25, and from 5 and 6 for Gymnarchus
+TM266_scenarios <- list(min_min = make_scenario(MNI, site = "TM266", Hydrocynus = 11, Gymnarchus = 5), min_max = make_scenario(MNI, site = "TM266", Hydrocynus = 11, Gymnarchus = 6), max_min = make_scenario(MNI,site = "TM266", Hydrocynus = 25, Gymnarchus = 5), max_max = make_scenario(MNI, site = "TM266", Hydrocynus = 25, Gymnarchus = 6))
+
+#TM337: MNI for Alestinae is estimated to vary from 11 to 16
+TM337_scenarios <- list(min = make_scenario(MNI, site = "TM337", Alestinae = 11 ), max = make_scenario(MNI, site = "TM337", Alestinae = 16))
+```
+
+**Recalculate raw abundance ranks for each MNI scenario**
+
+```{r}
+#Calculate ranks of abundance (not standardised)
+compute_ranks <- function(x) {
+  r <- rep(0, length(x))
+  nonzero_idx <- which(x > 0)
+  if(length(nonzero_idx) == 0) return(r)
+  values <- x[nonzero_idx]
+  unique_vals <- sort(unique(values), decreasing = TRUE)
+  unique_ranks <- match(values, unique_vals)
+  r[nonzero_idx] <- unique_ranks
+  return(r)
+}
+
+# Calculate ranks from the original MNI dataframe
+ranks_df <- as.data.frame(apply(MNI, 2, compute_ranks))
+
+rownames(ranks_df) <- taxa
+colnames(ranks_df) <- sites
+
+# Calculate alternative ranks in the scenarios for each site
+calculate_ranks <- function(MNI_matrix) {
+  ranks <- as.data.frame(apply(MNI_matrix, 2, compute_ranks))
+  rownames(ranks) <- rownames(MNI_matrix)
+  colnames(ranks) <- colnames(MNI_matrix)
+  return(ranks)
+}
+```
+
+**Compare abundance ranks across MNI scenarios**
+
+```{r}
+#TM90: some ranks vary between 2 and 1, but does not affect the main taxa
+TM90_ranks <- lapply(TM90_scenarios, calculate_ranks)
+TM90_comparison <- lapply(TM90_ranks, function(x) {x[, "TM90"] - ranks_df[, "TM90"]})
+TM90_comparison
+
+TM90_comp_ranks <- data.frame(Taxon = taxa, MNI_reference = MNI[, "TM90"], 
+MNI_min = TM90_scenarios$min[, "TM90"], MNI_max = TM90_scenarios$max[, "TM90"], Rank_reference = ranks_df[, "TM90"], Rank_min = TM90_ranks$min[, "TM90"], Rank_max = TM90_ranks$max[, "TM90"])
+TM90_comp_ranks
+
+#TM252: Ranks are not affected by alternative MNI.
+TM252_ranks <- lapply(TM252_scenarios, calculate_ranks) 
+TM252_comparison <- lapply(TM252_ranks, function(x) {x[, "TM252"] - ranks_df[, "TM252"]})
+TM252_comparison
+
+TM252_comp_ranks <- data.frame(Taxon = taxa, MNI_reference = MNI[, "TM252"], MNI_min_min = TM252_scenarios$min_min[, "TM252"],MNI_min_max = TM252_scenarios$min_max[, "TM252"], MNI_max_min = TM252_scenarios$max_min[, "TM252"], MNI_max_max = TM252_scenarios$max_max[, "TM252"], Rank_reference = ranks_df[, "TM252"], Rank_min_min = TM252_ranks$min_min[, "TM252"], Rank_min_max = TM252_ranks$min_max[, "TM252"], Rank_max_min = TM252_ranks$max_min[, "TM252"], Rank_max_max = TM252_ranks$max_max[, "TM252"])
+TM252_comp_ranks
+
+#TM266: some ranks vary between 2 and 1, but does not affect the main taxa
+TM266_ranks <- lapply(TM266_scenarios, calculate_ranks)
+TM266_comparison <- lapply(TM266_ranks, function(x) {x[, "TM266"] - ranks_df[, "TM266"]})
+TM266_comparison
+
+TM266_comp_ranks<-data.frame(Taxon = taxa, MNI_reference = MNI[, "TM266"], MNI_min_min = TM266_scenarios$min_min[, "TM266"], MNI_min_max = TM266_scenarios$min_max[, "TM266"], MNI_max_min = TM266_scenarios$max_min[, "TM266"], MNI_max_max = TM266_scenarios$max_max[, "TM266"], Rank_reference = ranks_df[, "TM266"], Rank_min_min = TM266_ranks$min_min[, "TM266"], Rank_min_max = TM266_ranks$min_max[, "TM266"], Rank_max_min = TM266_ranks$max_min[, "TM266"], Rank_max_max = TM266_ranks$max_max[, "TM266"])
+
+#TM337: some ranks vary between 2 and 1, but does not affect the main taxa
+TM337_ranks <- lapply(TM337_scenarios, calculate_ranks)
+TM337_comparison <- lapply(TM337_ranks,function(x) {x[, "TM337"] - ranks_df[, "TM337"]})
+TM337_comparison
+
+TM337_comp_ranks <- data.frame(Taxon = taxa, MNI_reference = MNI[, "TM337"], MNI_min = TM337_scenarios$min[, "TM337"], MNI_max = TM337_scenarios$max[, "TM337"], Rank_reference = ranks_df[, "TM337"], Rank_min = TM337_ranks$min[, "TM337"], Rank_max = TM337_ranks$max[, "TM337"])
+TM337_comp_ranks
+
+write.csv(TM90_comp_ranks, "results/TableS1_TM90_MNI_sensitivity_test.csv", row.names = FALSE)
+write.csv(TM252_comp_ranks, "results/TableS2_TM252_MNI_sensitivity_test.csv", row.names = FALSE)
+write.csv(TM266_comp_ranks, "results/TableS3_TM266_MNI_sensitivity_test.csv", row.names = FALSE)
+write.csv(TM337_comp_ranks, "results/TableS4_TM337_MNI_sensitivity_test.csv", row.names = FALSE)
+```
+
 # Hierarchical clustering of assemblages
 
-We investigate the similarity between assemblages based on their ranked faunal composition. We use Bray–Curtis dissimilarity on abundance-standardized data, followed by hierarchical clustering and PERMANOVA to test for group-level differences.
+Similarity in taxonomic structure among assemblages was explored using hierarchical cluster analysis based on the Bray-Curtis dissimilarity index. The Bray-Curtis index quantifies dissimilarity in standardised taxonomic rank abundance, ranging from 0 (identical assemblages) to 1 (no taxa in common). Ranks were Hellinger-transformed before clustering to reduce the influence of highly abundant taxa. Given the small number of assemblages (n = 5), the resulting clusters are considered exploratory, as their robustness cannot be reliably assessed statistically.
 
 ```{r}
 
-# Transpose the data so that rows = assemblages, columns = taxa
 std_ranks_df_long <- t(std_ranks_df)
 
-# Compute Bray–Curtis dissimilarity between assemblages
 bray_curtis <- vegdist(std_ranks_df_long, method = "bray")
-
-# Perform hierarchical clustering (UPGMA)
 hc <- hclust(bray_curtis, method = "average")
 
 # Visualize dendrogram
+png(filename = "figures/Fig3_hierarchical_clustering.png",
+    width = 600, height = 400)
+
 plot(hc, main = "Hierarchical clustering (Bray–Curtis)", xlab = "", sub = "")
-png(filename = "figures/hierarchical_clustering_BC.png",
-    width = 800, height = 600)
-plot(hc, main = "Hierarchical clustering (Bray–Curtis)", xlab = "", sub = "")
+
 dev.off()
 ```
 
-## Alternative clustering using pvclust (with bootstrapped support)
+# PCA ordination
 
-We also apply hierarchical clustering using Euclidean distance on Hellinger-transformed data, and assess node support with pvclust.
+A principal component analysis was performed on the matrix of standardized ranks of abundance to explore patterns of taxonomic structure among assemblages. The contributions of taxa to each principal component were calculated from their squared loadings.
 
 ```{r}
-# Apply Hellinger transformation (square root of relative abundances)
-dat_hel <- decostand(std_ranks_df_long, method = "hellinger")
 
-# Transpose again so that rows = taxa and columns = assemblages (pvclust requires this)
-dat_hel_t <- t(dat_hel)
+# PCA on standardized abundance ranks
+pca_ranks <- prcomp(
+  std_ranks_df_long,
+  center = TRUE,
+  scale. = FALSE
+)
 
-# Perform hierarchical clustering with bootstrap resampling
-set.seed(123)
-pv <- pvclust(dat_hel_t, method.hclust = "average", method.dist = "euclidean", nboot = 1000)
+summary(pca_ranks)
 
-# Plot dendrogram with AU (approximate unbiased) p-values
-plot(pv)
-pvrect(pv, alpha = 0.95)  # Highlight clusters with AU > 95%
+# Select top 10 taxa contributing to PC
+sites <- as.data.frame(pca_ranks$x[, 1:3])
+sites$Site <- rownames(sites)
+
+loadings <- as.data.frame(pca_ranks$rotation[, 1:3])
+loadings$Taxon <- rownames(loadings)
+
+# PC1-PC2
+loadings$Magnitude_PC12 <- sqrt(loadings$PC1^2 + loadings$PC2^2)
+
+top10_PC12 <- loadings[order(loadings$Magnitude_PC12, decreasing = TRUE), ][1:10, ]
+
+# PC1-PC3
+loadings$Magnitude_PC13 <- sqrt(loadings$PC1^2 + loadings$PC3^2)
+
+top10_PC13 <- loadings[order(loadings$Magnitude_PC13, decreasing = TRUE), ][1:10, ]
+
+var_exp <- pca_ranks$sdev^2 /
+  sum(pca_ranks$sdev^2) * 100
+
+# Function to make a PCA plot
+make_pca_plot <- function(
+    sites,
+    taxa,
+    x_axis,
+    y_axis,
+    x_percent,
+    y_percent,
+    arrow_scale = 2
+) {
+  
+  taxa_plot <- taxa
+  
+  taxa_plot$x_plot <- taxa_plot[[x_axis]] * arrow_scale
+  taxa_plot$y_plot <- taxa_plot[[y_axis]] * arrow_scale
+  
+  ggplot() +
+    
+    # Sites
+    geom_point(
+      data = sites,
+      aes(
+        x = .data[[x_axis]],
+        y = .data[[y_axis]]
+      ),
+      size = 4
+    ) +
+    
+    geom_text(
+      data = sites,
+      aes(
+        x = .data[[x_axis]],
+        y = .data[[y_axis]],
+        label = Site
+      ),
+      vjust = -1,
+      size = 4
+    ) +
+    
+    # Taxon arrows
+    geom_segment(
+      data = taxa_plot,
+      aes(
+        x = 0,
+        y = 0,
+        xend = x_plot,
+        yend = y_plot
+      ),
+      arrow = arrow(
+        length = unit(0.18, "cm")
+      )
+    ) +
+    
+    # Taxon labels
+    geom_text(
+      data = taxa_plot,
+      aes(
+        x = x_plot,
+        y = y_plot,
+        label = Taxon
+      ),
+      size = 3.2,
+      vjust = -0.5
+    ) +
+    
+    # Origin
+    geom_hline(
+      yintercept = 0,
+      linetype = "dashed"
+    ) +
+    
+    geom_vline(
+      xintercept = 0,
+      linetype = "dashed"
+    ) +
+    
+    labs(
+      x = paste0(
+        x_axis,
+        " (",
+        round(x_percent, 1),
+        "%)"
+      ),
+      y = paste0(
+        y_axis,
+        " (",
+        round(y_percent, 1),
+        "%)"
+      )
+    ) +
+    
+    theme_classic() +
+    
+    theme(
+      axis.title = element_text(size = 12),
+      axis.text = element_text(size = 10)
+    )
+}
 
 
-png(filename = "figures/hierarchical_clustering_ED.png",
-    width = 800, height = 600)
-plot(pv)
-pvrect(pv, alpha = 0.95)  # Highlight clusters with AU > 95%
-dev.off()
+# Create the two plots
+p12 <- make_pca_plot(sites = sites, taxa = top10_PC12, x_axis = "PC1",
+y_axis = "PC2", x_percent = var_exp[1], y_percent = var_exp[2])
+
+p13 <- make_pca_plot(sites = sites, taxa = top10_PC13, x_axis = "PC1", y_axis = "PC3", x_percent = var_exp[1], y_percent = var_exp[3])
+
+p12 + p13
+
+ggsave("figures/Fig3_PCA.png",width = 20, height = 10, units = "cm")
+
+
+# Loadings: which taxa contribute the most to the PC axes
+loadings <- as.data.frame(pca_ranks$rotation)
+contributions <- sweep(loadings^2, 2, colSums(loadings^2), "/") * 100
+contributions$Taxon <- rownames(contributions)
+
+contributions <- contributions[, c("Taxon", paste0("PC", 1:(ncol(contributions)-1)))]
+
+contributions
+
+top_contributions <- lapply(contributions[, -1], function(x) {contributions[order(x, decreasing = TRUE), c("Taxon", names(x))]})
+
+top_contributions$PC1 #Clariidae, Trionychidae, Mochokidae, Polypterus, Synodontis
+top_contributions$PC2 #Euthecodon, Bagridae, Libycosaurus, Polypterus, Claroteidae, Tetraodontidae
+top_contributions$PC3 #Tetraodontidae, Synodontis, Claroteidae, Polypterus, Cichlidae
 ```
 
-## Testing group-level differences with PERMANOVA
+# Calculation of ecological scores
 
-To test whether the composition of faunal assemblages differs significantly between predefined site groups, we run PERMANOVA (adonis2) on both the original and Hellinger-transformed data.
+Based on the taxon ecological matrix, an ecological scores for each ecological category and assemblage was calculated. It first represents the relative contribution of taxa associated with a given ecological category to the assemblage. But, as ecological categories are represented by unequal numbers of taxa (e.g. 14 of the 22 taxa associated with rivers/channels, 12 with lakes, only 6 with swamps/marshes). As a consequence, ecological scores consistently show the strongest signals for rivers and lakes across all assemblages. To account for this bias, we applied a weighting factor that gives proportionally greater weight to ecological categories represented by fewer taxa. This prevents their ecological signal from being masked by categories represented by a larger number of taxa. Because the weighting factor differs among ecological categories, the resulting scores are not strictly standardised. They are therefore primarily intended to assess the relative expression of ecological signals among assemblages, while differences in scores among ecological categories should be interpreted as relative rather than strictly quantitative.
 
 ```{r}
-# Create a grouping factor
-site_factor <- factor(c("1", "1", "2", "2", "3"))
-names(site_factor) <- c("TM252", "TM337", "TM90", "TM266", "TM242")
 
-# PERMANOVA on raw data using Bray–Curtis
-adonis_bc <- adonis2(std_ranks_df_long ~ site_factor, method = "bray", permutations = 999)
-print(adonis_bc)
+calculate_eco_scores <- function(ranks, eco_matrix) {
+  
+  scores <- matrix(
+    NA,
+    nrow = ncol(ranks),
+    ncol = ncol(eco_matrix)
+  )
+  
+  rownames(scores) <- colnames(ranks)
+  colnames(scores) <- colnames(eco_matrix)
+  
+  for (site in colnames(ranks)) {
+    
+    for (trait in colnames(eco_matrix)) {
+      
+      # Taxa associated with the ecological category
+      taxa_trait <- eco_matrix[, trait] == 1
+      taxa_trait[is.na(taxa_trait)] <- FALSE
+      
+      # Sum of weighted abundances
+      numerator <- sum(
+        ranks[taxa_trait, site],
+        na.rm = TRUE
+      )
+      
+      # Sum of weighted abundance of all taxa
+      denominator <- sum(
+        ranks[, site],
+        na.rm = TRUE
+      )
+      
+      scores[site, trait] <- numerator / denominator
+    }
+  }
+  
+  return(as.data.frame(scores))
+}
 
-# PERMANOVA on Hellinger-transformed data using Euclidean distance
-dat_hel <- decostand(std_ranks_df_long, method = "hellinger")
-adonis_hel <- adonis2(dat_hel ~ site_factor, method = "euclidean", permutations = 999)
-print(adonis_hel)
+eco_scores <- calculate_eco_scores(std_ranks_df, eco_matrix)
 
+## Proportion of taxa associated to each ecological category
+n_taxa_trait <- colSums(eco_matrix == 1, na.rm = TRUE)
+eco_proportion <- n_taxa_trait / nrow(eco_matrix)
+
+# Apply the correction
+eco_scores_corrected <- sweep(eco_scores, 2, eco_proportion, "/")
+eco_scores_corrected
+
+
+# Visualisation with heatmap
+# For visualisation, colour intensity was scaled independently within each assemblage using min–max normalization, so that the darkest and lightest colours represent the highest and lowest scores, respectively, within that assemblage. Colour intensity therefore highlights the relative ranking of ecological categories within each assemblage and should not be used for quantitative comparisons between assemblages.
+
+# min–max normalization for each assemblage
+heatmap_colors <- t(apply(as.matrix(eco_scores_corrected), 1, function(x) {(x - min(x, na.rm = TRUE)) / (max(x, na.rm = TRUE) - min(x, na.rm = TRUE))}))
+
+my_palette <- colorRampPalette(c("#E8EEF3", "#577590", "#374A66"))(100)
+
+pheatmap(
+  heatmap_colors,
+  color = my_palette,
+  cluster_rows = FALSE,
+  cluster_cols = FALSE,
+  display_numbers = round(as.matrix(eco_scores_corrected), 2),
+  number_format = "%.2f",
+  legend = FALSE,
+  border_color = "white",
+  filename = "figures/Fig7_ecological_scores.png",
+    width = 6,
+  height = 4
+)
 ```
 
 # Data visualization
@@ -519,7 +808,7 @@ ggplot(TM_AqTer_long, aes(x = "", y = Proportion, fill = Taxon_Name)) +
   theme(legend.position = "bottom") +
   labs(title = "Relative abundance of aquatic and terrestrial taxa per site")
 
-ggsave("figures/pie_charts.png")
+ggsave("figures/Fig4_pie_charts.png")
 
 ```
 
@@ -527,7 +816,7 @@ ggsave("figures/pie_charts.png")
 
 ```{r}
 # Long format
-nb_spec_long <- nb_spec %>%
+NISP_long <- NISP %>%
   rownames_to_column("Taxon") %>%
   pivot_longer(cols = -Taxon, names_to = "Site", values_to = "Count")
 
@@ -548,9 +837,9 @@ taxon_order <- c(
   "Crocodylus", "Euthecodon", "Gavialoidea", "Trionychidae", 
   "Hexaprotodon", "Libycosaurus")
 
-nb_spec_long$Taxon <- factor(nb_spec_long$Taxon, levels = taxon_order)
+NISP_long$Taxon <- factor(NISP_long$Taxon, levels = taxon_order)
 
-ggplot(nb_spec_long, aes(x = Taxon, y = Count, fill = Taxon)) +
+ggplot(NISP_long, aes(x = Taxon, y = Count, fill = Taxon)) +
   geom_bar(stat = "identity", position = "dodge") +
   scale_fill_manual(values = colors_aquatic) +
   facet_wrap(~ Site, ncol = 1) +
@@ -561,7 +850,7 @@ ggplot(nb_spec_long, aes(x = Taxon, y = Count, fill = Taxon)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1),
         legend.position = "none")
 
-ggsave("figures/barplots_nspec.png",width = 10, height = 24, units = "cm")
+ggsave("figures/Fig6_barplots_NISP.png",width = 10, height = 24, units = "cm")
 
 ```
 
@@ -585,7 +874,5 @@ ggplot(std_ranks_df_long, aes(x = Taxon, y = Count, fill = Taxon)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1),
         legend.position = "none")
 
-ggsave("figures/barplots_ranks.png",width = 10, height = 24, units = "cm")
-
-
+ggsave("figures/Fig6_barplots_ranks.png",width = 10, height = 24, units = "cm")
 ```
